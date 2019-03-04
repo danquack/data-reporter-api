@@ -1,0 +1,88 @@
+service: data-reporter
+provider:
+  name: aws
+  runtime: ruby2.5
+  stage: ${opt:stage,'dev'}
+  environment:
+    table_name: ${self:custom.table_name.${self:provider.stage}}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+      Resource:
+        - "Fn::GetAtt": [ DynamoDbTable, Arn ]
+
+package:
+  individually: true
+  exclude:
+    - "./**"
+
+functions:
+  get-reports:
+    handler: src/list_reports.lambda_handler
+    package:
+      include:
+        - vendor/**
+        - src/list_reports.rb
+        - src/report_repository.rb
+    events:
+      - http:
+          path: /
+          method: get
+          querystrings:
+            last_report: false
+            last_date: false
+            report: false
+            date: false
+          cors: true
+          integration: lambda
+  add-report:
+    handler: src/add_report.lambda_handler
+    package:
+      include:
+        - vendor/**
+        - src/add_report.rb
+        - src/report_repository.rb
+    events:
+      - http:
+          path: /
+          method: post
+          cors: true
+          integration: lambda-proxy
+          response:
+            template: $input.path('$')
+resources:
+  Resources:
+    DynamoDbTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+          TableName: ${self:custom.table_name.${self:provider.stage}}
+          AttributeDefinitions:
+          - AttributeName: project
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+          KeySchema:
+            - AttributeName: project
+              KeyType: HASH
+            - AttributeName: date
+              KeyType: RANGE
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+custom:
+  stages:
+    - 'dev'
+    - 'prod'
+  table_name:
+    dev: reports-dev
+    prod: reports
+  hooks:
+    package:initialize:
+      - bundle install --deployment
+
+plugins:
+- serverless-hooks-plugin
