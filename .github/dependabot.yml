@@ -1,0 +1,13 @@
+version: 2
+updates:
+- package-ecosystem: bundler
+  directory: "/"
+  schedule:
+    interval: daily
+    time: "10:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: aws-sdk-dynamodb
+    versions:
+    - 1.58.0
+    - 1.59.0
